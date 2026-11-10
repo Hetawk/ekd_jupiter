@@ -16,4 +16,6 @@ if ! command -v roslaunch >/dev/null 2>&1; then
   exit 1
 fi
 
+printf '[%s] SafeZone | Starting continuous camera detection. Say a wake phrase to save and send one scene image.\n' \
+  "$(date '+%H:%M:%S')"
 exec roslaunch jupiterobot2_vision_yolov5 safezone_demo.launch "$@"

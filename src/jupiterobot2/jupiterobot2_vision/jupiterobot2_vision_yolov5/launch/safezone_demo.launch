@@ -1,19 +1,42 @@
 <launch>
   <arg name="camera_topic" default="/camera/color/image_raw"/>
-  <arg name="window_seconds" default="10.0"/>
+  <arg name="camera_serial_number" default="ADAE723004E"/>
+  <arg name="camera_device_num" default="1"/>
   <arg name="processing_interval" default="0.35"/>
-  <arg name="audio_source" default="alsasrc"/>
+  <arg name="audio_source" default="pulsesrc"/>
   <arg name="acoustic_model" default="/usr/local/share/pocketsphinx/model/en-us/en-us"/>
 
-  <include file="$(find jupiterobot2_bringup)/launch/multi_camera.launch">
-    <arg name="scan_processing" value="false"/>
-  </include>
+  <node name="camera_shm_cleanup"
+        pkg="astra_camera"
+        type="cleanup_shm_node"
+        output="log"/>
+
+  <group ns="camera">
+    <node name="camera"
+          pkg="astra_camera"
+          type="astra_camera_node"
+          output="log">
+      <param name="camera_name" value="camera"/>
+      <param name="serial_number" value="$(arg camera_serial_number)"/>
+      <param name="device_num" value="$(arg camera_device_num)"/>
+      <param name="depth_align" value="false"/>
+      <param name="enable_color" value="true"/>
+      <param name="color_width" value="640"/>
+      <param name="color_height" value="480"/>
+      <param name="color_fps" value="30"/>
+      <param name="color_format" value="RGB"/>
+      <param name="enable_depth" value="false"/>
+      <param name="enable_ir" value="false"/>
+      <param name="enable_point_cloud" value="false"/>
+      <param name="enable_point_cloud_xyzrgb" value="false"/>
+      <param name="publish_tf" value="false"/>
+    </node>
+  </group>
 
   <node pkg="jupiterobot2_vision_yolov5"
         type="safezone_wake.py"
         name="safezone_wake"
-        output="screen">
-    <param name="keyword" value="hey ekd"/>
+        output="log">
     <param name="cooldown_seconds" value="3.0"/>
     <param name="source" value="$(arg audio_source)"/>
     <param name="hmm" value="$(arg acoustic_model)"/>
@@ -26,13 +49,14 @@
         name="safezone_assistant"
         output="screen">
     <param name="camera_topic" value="$(arg camera_topic)"/>
-    <param name="window_seconds" value="$(arg window_seconds)"/>
+    <param name="show_preview" value="true"/>
     <param name="processing_interval" value="$(arg processing_interval)"/>
     <param name="confidence" value="0.25"/>
+    <param name="event_log_dir" value="$(env HOME)/.ros/safezone/events"/>
   </node>
 
   <node pkg="jupiterobot2_voice_xf"
         type="tts_subscribe"
         name="safezone_tts"
-        output="screen"/>
+        output="log"/>
 </launch>

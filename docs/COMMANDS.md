@@ -16,7 +16,7 @@ The ROS workflow terminal counts below include one dedicated `roscore` terminal 
 
 The reference covers the Catkin builds and course-guide ROS examples. Workspace-copy, file-move, archive-extraction, and model-alias setup commands are not included as runnable examples because they are one-time file operations.
 
-For the SafeZone robot demo using the existing checkpoint (no training), run [`safezone.sh`](./safezone.sh) in one terminal. It starts the robot camera, local “Hey EKD” wake-word listener, event-based detector, and Jupiter speech output. The camera is monitored only for a short window after the wake phrase; only one still image is sent to Qwen after scissors or earbuds are detected.
+For the SafeZone robot demo using the existing checkpoint (no training), run [`safezone.sh`](./safezone.sh) in one terminal. It starts the single Astra camera by its connected serial number, a local multi-phrase wake listener, continuous local detector, and Jupiter speech output. The live preview and scissors/earbuds detection remain active while the demo runs; frames are held in memory for local processing, not continuously saved or uploaded. Wake phrases include “Hey EKD,” “Hi EKD,” “Hello EKD,” “Hey SafeZone,” “Okay SafeZone,” “SafeZone,” “SafeZone wake up,” and “Wake up SafeZone.” A recognized wake phrase saves and sends exactly one current scene image for Qwen feedback, even if the detector has not confirmed either target. Qwen returns a concise, respectful spoken message (up to 50 words when useful), which may describe clearly visible details such as an object's location, a person's posture/position, or an unambiguous clothing color. It must not infer identity, gender, movement from a still image, intent, danger, or a policy violation. It must not associate an object with a person unless that is unmistakably visible; when no association or target is clear, the response should be appreciative and avoid singling anyone out. Because no workspace policy is configured, it asks the operator to check local rules rather than assert an item is prohibited or threaten reporting. Event images and a JSONL record of wake phrases, detections, Qwen responses/errors, and spoken responses are stored under `~/.ros/safezone/events/` with user-only file permissions. The listener uses the selected PulseAudio microphone by default and reports whether audio is reaching it; override the audio source with `audio_source:=alsasrc` if needed. Camera-driver, wake-engine diagnostics, and TTS logs are saved by ROS instead of flooding the terminal. Timestamped SafeZone status messages show wake-listener readiness, microphone level warnings, recognized phrases or unmatched speech, live detections, Qwen scene context, and the exact message sent to speech.
 
 ## Recommended EKD workflow
 
@@ -455,7 +455,7 @@ The following checks were run without starting hardware or inference nodes:
 - `rospack find` resolved all guide packages except `rchomeedu_vision`; EKD's equivalent photo package is `rfa_vision`.
 - `roslaunch --nodes` parsed the GUI, speech, chatbot, camera, OpenCV, YOLO, and MediaPipe launch files.
 - `rosrun --prefix /bin/true` resolved the photo and VLM scripts; the voice binaries exist in the EKD devel space.
-- The launch parser reports the existing `Wunti` package-name convention warning; it did not prevent launch-file parsing.
+- The unused `Wunti` Catkin starter package was removed; it contained only the default talker/listener scaffold and had no workspace dependencies.
 
 ## 9) Quick cheat sheet
 

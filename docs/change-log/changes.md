@@ -98,7 +98,7 @@
 
 - Added original `catkin_ws` and EKD command pairs to `COMMANDS.md` for build/GUI, speech/chatbot, cameras/photo capture, OpenCV, YOLO, MediaPipe, and VLM workflows.
 - Corrected the EKD photo-capture package mapping: the PDF says `rchomeedu_vision`, which is absent from EKD; the equivalent scripts are in `rfa_vision`.
-- Added notes for robot camera/topic selection, chatbot API credentials, conceptual-only exercises, the custom YOLO training slide, and the existing non-fatal `Wunti` naming warning.
+- Added notes for robot camera/topic selection, chatbot API credentials, conceptual-only exercises, the custom YOLO training slide, and the non-fatal `Wunti` naming warning that existed at the time. The unused package was later removed; see the SafeZone startup-fix entry below.
 - Commands run to read the guide and validate EKD commands:
   - `pdftotext -layout -nopgbrk docs/course-guide.pdf -` with ROS-command searches and focused slide ranges.
   - `source ~/ekd_catkin_ws/setup_ekd.bash && rospack find <package>` for the guide packages.
@@ -183,3 +183,47 @@
 - Pre-test validation: `catkin_make` completed successfully; `roslaunch --nodes jupiterobot2_vision_yolov5 safezone_demo.launch` resolved the camera, wake listener, assistant, and TTS nodes; the checkpoint loaded and ran local inference on a sample image with only the `scissors` and `earbuds` classes; the PocketSphinx GStreamer pipeline ran on synthetic audio; and `qwen_call.py` passed a mocked completion using the configured URL and `qwen3.8-max`.
 - Also confirmed the Qwen YAML's exact `BASE_URL`, Python syntax, SafeZone launch XML, launcher Bash syntax, available ALSA capture-device listings, and `git diff --check`.
 - No microphone audio was recorded, no Qwen API request was sent, and no robot camera or speaker session was run. Those checks remain for the supervised on-robot test.
+
+## 2026-11-10: Improve SafeZone camera startup and operator feedback
+
+- The first robot launch repeatedly tried to open two Astra cameras whose configured serials did not match the connected camera (`ADAE723004E`). Replaced the two-camera bring-up with one Astra camera, defaulting to the observed serial and allowing it to be overridden with the `camera_serial_number` launch argument.
+- Routed camera-driver and TTS node output to ROS log files instead of the interactive terminal.
+- Added a local preview window during the wake-triggered camera window only, with target boxes and `Q`/`Esc` to stop capture early; no preview is kept open outside the active window.
+- Replaced routine ROS console messages in the SafeZone wake and assistant nodes with concise local-time status messages, including camera-feed arrival, detections, accepted Qwen context, API failures, and the exact safety message published for speech.
+- Added a timestamped startup instruction to `docs/safezone.sh`.
+- Updated `COMMANDS.md` and `about.md` with the preview, terminal output, and single-camera behavior.
+- Validation: SafeZone launch XML parsed with one camera configured for the serial observed in the pasted log; both Python scripts and the launcher passed syntax checks; `catkin_make` completed successfully; `roslaunch --nodes` resolved the cleanup, camera, wake, assistant, and TTS nodes; and `git diff --check` passed. Live camera preview, microphone capture, Qwen request, and TTS still require a robot run.
+
+## 2026-11-10: Fix SafeZone assistant startup and wake diagnostics
+
+- The robot run showed `safezone_assistant.py` exiting with `ModuleNotFoundError: No module named 'detector'`. Added an explicit ROS package scripts-path lookup before importing the sibling detector module and declared the `rospkg` runtime dependency.
+- Routed PocketSphinx's startup configuration dump to the wake node's ROS log file. The wake node now relays concise readiness and microphone-error status over a latched ROS topic, which the assistant timestamps in the terminal.
+- This keeps actionable wake status visible while suppressing the long PocketSphinx configuration output.
+- Removed the unused `src/Wunti` Catkin tutorial scaffold after confirming it contains only default talker/listener scripts and has no references or dependencies elsewhere in `src`. This removes the `Wunti` package naming warning without renaming or changing a package used by SafeZone.
+- Removed the YOLO detector's three import-time debug prints so launching the assistant does not print package/workspace paths.
+- Validation: SafeZone assistant imported the ROS-resolved `detector` module; launch XML and Python/Bash syntax checks passed; `catkin_make` completed after package removal; `roslaunch --nodes` resolved the cleanup, camera, wake, assistant, and TTS nodes without the Wunti warning; the ROS package index no longer contains Wunti; and `git diff --check` passed. Live camera preview, microphone capture, Qwen request, and TTS still require robot testing.
+- The next robot run confirmed the assistant and wake listener both started, but PocketSphinx's native configuration table still appeared on the terminal. The wake listener now redirects native stderr only while constructing and starting the audio pipeline; subsequent pipeline errors still reach the ROS error callback and SafeZone status output. Its readiness message clarifies that the camera preview opens only after the wake phrase.
+- Validation: reproduced the PocketSphinx pipeline using synthetic audio and verified that initialization succeeds without emitting the configuration table; Python syntax, SafeZone launch-node resolution, and `git diff --check` passed. This did not record microphone audio or validate the camera, Qwen, or TTS on the robot.
+
+## 2026-11-10: Expand SafeZone wake phrases and microphone diagnostics
+
+- Added “Hi EKD,” “Hello EKD,” “Hey SafeZone,” “Okay SafeZone,” “SafeZone,” “SafeZone wake up,” and “Wake up SafeZone” as additional PocketSphinx keyword phrases. Phrase matching now accepts every configured keyword, instead of only “Hey EKD.”
+- Changed the default audio source from `alsasrc` to `pulsesrc`, which uses the system-selected PulseAudio input; the `audio_source` launch argument remains configurable.
+- Added a GStreamer audio-level monitor and concise status for microphone signal, prolonged quiet input, recognized phrases, and occasional unmatched speech. This makes source/phrase problems easier to distinguish without restoring the PocketSphinx configuration flood.
+- Added a GLib main loop thread to dispatch GStreamer bus messages while the ROS node is spinning; without a GLib loop, wake results and microphone-level status might never reach the callbacks.
+- Updated the SafeZone operational docs with available phrases, audio-source override, and status expectations.
+- Validation: all eight KWS phrases have dictionary pronunciations; synthetic audio produced GStreamer microphone-level messages; Python/Bash syntax, launch parsing/node resolution, and whitespace checks passed. Wake recognition from the robot microphone still requires a live test.
+
+## 2026-11-10: Keep SafeZone camera and detection continuously active
+
+- Changed the assistant from wake-gated camera subscription and a 10-second capture window to a persistent camera subscription. Local scissors/earbuds detection and the preview now continue for the whole launch; closing the process closes the camera and preview.
+- Changed wake behavior to snapshot the latest in-memory camera frame and detector results, then save and send exactly that still to Qwen. No video or pre-wake frames are written or uploaded. The snapshot is sent even when local detection finds neither target, allowing limited scene feedback.
+- Changed the wake ROS message from `std_msgs/Empty` to `std_msgs/String` so the recognized phrase is available in event logs.
+- Added append-only JSONL event records for startup, live detections, wake captures, Qwen response/context or API failure, and final spoken response. Wake-triggered stills and the log are stored at `~/.ros/safezone/events/` with user-only file permissions.
+- Expanded the Qwen prompt to request a calm, respectful spoken message of up to 50 words. It may mention clearly visible object location, a person's posture/position, and unambiguous clothing color. It must not infer identity, gender, movement from a still image, intent, danger, injury, or policy compliance. Since no workspace policy/reporting procedure is configured, it asks the operator to check local rules instead of claiming an item is prohibited or threatening a report.
+- Refined the prompt and local fallback replies to be appreciative and avoid singling out a person when a detected item is not clearly associated with them or no target is confirmed. The 50-word limit is a maximum, not a length goal; responses should be concise and only include relevant visible details.
+- Increased the Qwen request timeout from 20 to 45 seconds after the robot log showed the existing timeout expiring during a scene request; detection continues locally while the asynchronous request is in progress.
+- Fixed the no-Qwen fallback's target checks to compare the detector-result dictionary's keys, so scissors-only and earbuds-only detections receive the correct message rather than the combined-target warning.
+- Corrected preview rendering so target boxes appear on the continuous camera display.
+- Updated the SafeZone launch, startup message, command guide, project overview, and change-log summary to describe the persistent camera and wake-only capture/upload behavior.
+- Validation: synthetic callback tests confirm continuous local detection, no pre-wake image save, one wake-triggered still, event/response logging, and Qwen message limit/filtering; Python/Bash syntax, launch XML parsing, Catkin build, and diff checks passed. Live camera preview, wake-triggered Qwen API, and TTS still require robot validation.

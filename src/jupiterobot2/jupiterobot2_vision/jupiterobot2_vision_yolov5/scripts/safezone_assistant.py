@@ -1,51 +1,106 @@
 #!/usr/bin/env python3
 
 import base64
+from datetime import datetime
+import json
 import os
+from pathlib import Path
+import re
+import rospkg
+import sys
 import threading
 import time
+import uuid
 
 import cv2
 import rospy
 from cv_bridge import CvBridge, CvBridgeError
 from openai import APIError, OpenAI
 from sensor_msgs.msg import Image
-from std_msgs.msg import Empty, String
+from std_msgs.msg import String
+
+package_scripts = Path(
+    rospkg.RosPack().get_path("jupiterobot2_vision_yolov5")
+) / "scripts"
+if not (package_scripts / "detector.py").is_file():
+    raise RuntimeError(f"SafeZone detector module not found in {package_scripts}")
+sys.path.insert(0, str(package_scripts))
 
 from detector import DEFAULT_DATA, DEFAULT_WEIGHTS, Detector
 
 
 TARGETS = {"scissors", "earbuds"}
 UNSAFE_CONTEXT_TERMS = (
-    "person",
-    "people",
-    "man",
-    "woman",
-    "wear",
-    "shirt",
-    "clothing",
     "identity",
+    "identify",
+    "gender",
+    "age",
+    "male",
+    "female",
+    "intent",
     "violation",
+    "violating",
     "illegal",
     "prohibited",
     "forbidden",
     "not allowed",
+    "permitted",
+    "compliance",
+    "compliant",
+    "dangerous",
+    "unsafe",
+    "danger",
+    "risk",
+    "hazard",
+    "threat",
+    "report",
+    "non-compliant",
+    "noncompliant",
+    "breaking rules",
+    "sir",
+    "madam",
+    "injury",
+    "injured",
+    "bleeding",
+    "wearing earbuds",
+)
+UNSUPPORTED_GENDER_WORDS = re.compile(
+    r"\b(?:man|woman|boy|girl|he|she|his|her)\b", re.IGNORECASE
 )
 
 
 class SafeZoneAssistant:
+    PREVIEW_WINDOW = "SafeZone live camera"
+
     def __init__(self):
         rospy.init_node("safezone_assistant")
 
         self.camera_topic = rospy.get_param(
             "~camera_topic", "/camera/color/image_raw"
         )
-        self.window_seconds = float(rospy.get_param("~window_seconds", 10.0))
         self.processing_interval = float(
             rospy.get_param("~processing_interval", 0.35)
         )
-        if self.window_seconds <= 0 or self.processing_interval <= 0:
-            raise ValueError("window_seconds and processing_interval must be positive")
+        self.show_preview = bool(rospy.get_param("~show_preview", True))
+        if self.processing_interval <= 0:
+            raise ValueError("processing_interval must be positive")
+
+        self.event_directory = Path(
+            os.path.expanduser(
+                rospy.get_param("~event_log_dir", "~/.ros/safezone/events")
+            )
+        )
+        try:
+            self.event_directory.mkdir(
+                parents=True, exist_ok=True, mode=0o700
+            )
+        except OSError as error:
+            raise RuntimeError(
+                f"Could not create SafeZone event directory "
+                f"{self.event_directory}: {error}"
+            ) from error
+        self.event_log_path = self.event_directory / "events.jsonl"
+        self.log_lock = threading.Lock()
 
         self.bridge = CvBridge()
         self.detector = Detector(
@@ -53,7 +108,7 @@ class SafeZoneAssistant:
             data=rospy.get_param("~data", str(DEFAULT_DATA)),
             conf_thres=float(rospy.get_param("~confidence", 0.25)),
             classes=[0, 1],
-            view_img=False,
+            view_img=self.show_preview,
         )
         names = self.detector.names
         model_labels = {
@@ -73,23 +128,20 @@ class SafeZoneAssistant:
                 api_key=api_key,
                 # Previous endpoint: https://dashscope.aliyuncs.com/compatible-mode/v1
                 base_url="https://llm-orqx90gtcezlx878.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
-                timeout=20.0,
+                timeout=45.0,
                 max_retries=0,
             )
             if api_key
             else None
         )
         if self.client is None:
-            rospy.logwarn(
-                "EKD_QWEN_API_KEY is unset; detections will use the "
-                "built-in safety message without Qwen context"
+            self._status(
+                "EKD_QWEN_API_KEY is unset; detections will use the built-in "
+                "safety message without Qwen context."
             )
 
         # Previous model: qwen-omni-turbo
         self.model = rospy.get_param("~qwen_model", "qwen3.8-max")
-        self.wake_subscriber = rospy.Subscriber(
-            "/safezone/wake", Empty, self._on_wake, queue_size=1
-        )
         self.speech_publisher = rospy.Publisher(
             "/voiceWords", String, queue_size=1
         )
@@ -98,63 +150,142 @@ class SafeZoneAssistant:
         )
 
         self.lock = threading.Lock()
-        self.active = False
         self.processing = False
+        self.received_frame = False
+        self.preview_available = self.show_preview
         self.last_inference = 0.0
-        self.image_subscriber = None
-        self.window_timer = None
+        self.latest_frame = None
+        self.latest_frame_time = None
+        self.latest_targets = {}
+        self.last_detection_log = {}
+        self.camera_subscriber = rospy.Subscriber(
+            self.camera_topic,
+            Image,
+            self._on_image,
+            queue_size=1,
+            buff_size=10 * 1024 * 1024,
+        )
+        self.wake_subscriber = rospy.Subscriber(
+            "/safezone/wake", String, self._on_wake, queue_size=1
+        )
+        self.wake_status_subscriber = rospy.Subscriber(
+            "/safezone/wake_status",
+            String,
+            self._on_wake_status,
+            queue_size=5,
+        )
         rospy.on_shutdown(self._shutdown)
-
-    def _on_wake(self, _message):
-        with self.lock:
-            if self.active or self.processing:
-                rospy.loginfo("Ignoring wake phrase while a SafeZone session is busy")
-                return
-            self.active = True
-            self.last_inference = 0.0
-            self.image_subscriber = rospy.Subscriber(
-                self.camera_topic,
-                Image,
-                self._on_image,
-                queue_size=1,
-                buff_size=10 * 1024 * 1024,
-            )
-            self.window_timer = rospy.Timer(
-                rospy.Duration(self.window_seconds), self._on_timeout, oneshot=True
-            )
-
-        rospy.loginfo(
-            "SafeZone camera monitoring active for %.1f seconds",
-            self.window_seconds,
+        self._status("Ready. Live camera detection is running continuously.")
+        self._status(
+            "Say a wake phrase to save and send one current scene image for feedback."
+        )
+        self._record_event(
+            "assistant_started",
+            camera_topic=self.camera_topic,
+            processing_interval_seconds=self.processing_interval,
+            preview_enabled=self.show_preview,
+            event_log=str(self.event_log_path),
         )
 
-    def _on_timeout(self, _event):
+    @staticmethod
+    def _status(message):
+        timestamp = datetime.now().astimezone().strftime("%H:%M:%S")
+        print(f"[{timestamp}] SafeZone | {message}", flush=True)
+
+    def _record_event(self, event_type, event_id=None, **details):
+        entry = {
+            "timestamp": datetime.now().astimezone().isoformat(timespec="milliseconds"),
+            "event": event_type,
+        }
+        if event_id is not None:
+            entry["event_id"] = event_id
+        entry.update(details)
+        try:
+            with self.log_lock:
+                with self.event_log_path.open("a", encoding="utf-8") as log_file:
+                    os.chmod(self.event_log_path, 0o600)
+                    log_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                    log_file.flush()
+        except OSError as error:
+            self._status(f"ERROR: could not write event log: {error}")
+
+    def _on_wake_status(self, message):
+        self._status(f"Wake listener | {message.data}")
+        self._record_event("wake_listener_status", message=message.data)
+
+    def _on_wake(self, message):
+        event_id = uuid.uuid4().hex
+        wake_phrase = message.data.strip()
         with self.lock:
-            if not self.active:
+            if self.processing:
+                self._record_event(
+                    "wake_ignored",
+                    event_id,
+                    wake_phrase=wake_phrase,
+                    reason="previous event is still processing",
+                )
+                self._status("Wake ignored; the previous event is still processing.")
                 return
-            self.active = False
-            self.image_subscriber.unregister()
-            self.image_subscriber = None
-            self.window_timer = None
-        rospy.loginfo("SafeZone monitoring window ended without a target detection")
+            if self.latest_frame is None:
+                self._record_event(
+                    "wake_without_camera_frame",
+                    event_id,
+                    wake_phrase=wake_phrase,
+                )
+                self._status("Wake received, but no camera frame is available yet.")
+                return
+            frame = self.latest_frame.copy()
+            targets = dict(self.latest_targets)
+            frame_time = self.latest_frame_time
+            self.processing = True
+
+        image_path = self.event_directory / f"{event_id}.jpg"
+        try:
+            if not cv2.imwrite(str(image_path), frame):
+                raise OSError("OpenCV could not save the event image")
+            os.chmod(image_path, 0o600)
+            saved_image = str(image_path)
+        except (OSError, cv2.error) as error:
+            saved_image = None
+            self._status(f"ERROR: could not save wake-triggered image: {error}")
+
+        self._record_event(
+            "wake_capture",
+            event_id,
+            wake_phrase=wake_phrase,
+            camera_frame_timestamp=frame_time,
+            image_path=saved_image,
+            detections=targets,
+        )
+        self._status(
+            "Wake phrase recognized. Captured one current frame; "
+            "live detection continues."
+        )
+        worker = threading.Thread(
+            target=self._analyze_and_speak,
+            args=(event_id, frame, targets, saved_image),
+            name="safezone-qwen-event",
+            daemon=True,
+        )
+        worker.start()
 
     def _on_image(self, message):
         now = time.monotonic()
         with self.lock:
-            if not self.active or now - self.last_inference < self.processing_interval:
+            if now - self.last_inference < self.processing_interval:
                 return
             self.last_inference = now
 
         try:
             frame = self.bridge.imgmsg_to_cv2(message, "bgr8")
         except CvBridgeError as error:
-            rospy.logwarn("Could not decode camera frame: %s", error)
+            self._status(f"ERROR: could not decode camera frame: {error}")
             return
 
         try:
-            _annotated, detections = self.detector.detect(frame.copy())
+            preview, detections = self.detector.detect(frame.copy())
         except (RuntimeError, cv2.error) as error:
-            rospy.logerr("SafeZone detector failed: %s", error)
+            self._status(f"ERROR: detector failed: {error}")
             return
 
         targets = {}
@@ -164,51 +295,94 @@ class SafeZoneAssistant:
                 targets[label] = max(
                     targets.get(label, 0.0), float(detection.conf)
                 )
-        if not targets:
-            return
 
         with self.lock:
-            if not self.active:
-                return
-            self.active = False
-            self.processing = True
-            self.image_subscriber.unregister()
-            self.image_subscriber = None
-            if self.window_timer is not None:
-                self.window_timer.shutdown()
-                self.window_timer = None
+            self.latest_frame = frame.copy()
+            self.latest_frame_time = datetime.now().astimezone().isoformat(
+                timespec="milliseconds"
+            )
+            self.latest_targets = targets
 
-        rospy.loginfo(
-            "SafeZone target detected: %s",
-            ", ".join(f"{name} ({score:.2f})" for name, score in targets.items()),
-        )
-        worker = threading.Thread(
-            target=self._analyze_and_speak,
-            args=(frame.copy(), targets),
-            name="safezone-qwen-event",
-            daemon=True,
-        )
-        worker.start()
+        if not self.received_frame:
+            self.received_frame = True
+            self._status("Camera feed received; live local detection is active.")
+            self._record_event("camera_frame_received")
 
-    def _analyze_and_speak(self, frame, targets):
-        context = ""
-        if self.client is not None:
+        if self.preview_available:
             try:
-                context = self._get_visual_context(frame, targets)
-            except APIError as error:
-                rospy.logerr("Qwen event analysis failed: %s", error)
-            except (ValueError, cv2.error) as error:
-                rospy.logerr("Could not prepare the SafeZone event image: %s", error)
+                cv2.putText(
+                    preview,
+                    "SAFEZONE LIVE - image upload only after wake phrase",
+                    (12, 28),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    2,
+                )
+                cv2.imshow(self.PREVIEW_WINDOW, preview)
+                cv2.waitKey(1)
+            except cv2.error as error:
+                self.preview_available = False
+                self._status(
+                    "Live camera preview unavailable; detection continues without a "
+                    f"window ({error})."
+                )
 
-        message = self._safety_message(targets)
-        if context:
-            message = f"{message} Visual context: {context}"
-        self.response_publisher.publish(String(data=message))
-        self.speech_publisher.publish(String(data=message))
-        rospy.loginfo("SafeZone spoken response: %s", message)
+        self._report_live_detections(targets)
 
-        with self.lock:
-            self.processing = False
+    def _report_live_detections(self, targets):
+        now = time.monotonic()
+        for name, score in targets.items():
+            if now - self.last_detection_log.get(name, 0.0) < 30.0:
+                continue
+            self.last_detection_log[name] = now
+            self._status(
+                f"Live detection: possible {name} (confidence {score:.2f}); "
+                "waiting for a wake phrase before sending an image."
+            )
+            self._record_event(
+                "live_detection",
+                label=name,
+                confidence=round(score, 4),
+            )
+
+    def _analyze_and_speak(self, event_id, frame, targets, image_path):
+        context = ""
+        qwen_response = ""
+        qwen_status = "skipped_no_api_key"
+        qwen_error = None
+        try:
+            if self.client is not None:
+                qwen_response, context = self._get_visual_context(frame, targets)
+                qwen_status = "success"
+        except APIError as error:
+            qwen_status = "error"
+            qwen_error = str(error)
+            self._status(f"Qwen API error: {error}")
+        except (ValueError, cv2.error) as error:
+            qwen_status = "error"
+            qwen_error = str(error)
+            self._status(f"Could not prepare the event image: {error}")
+
+        try:
+            message = context or self._safety_message(targets)
+            self.response_publisher.publish(String(data=message))
+            self.speech_publisher.publish(String(data=message))
+            self._status(f"Spoken response: {message}")
+            self._record_event(
+                "event_response",
+                event_id,
+                image_path=image_path,
+                detections=targets,
+                qwen_status=qwen_status,
+                qwen_response=qwen_response,
+                visual_context=context,
+                qwen_error=qwen_error,
+                spoken_response=message,
+            )
+        finally:
+            with self.lock:
+                self.processing = False
 
     def _get_visual_context(self, frame, targets):
         encoded_ok, encoded_image = cv2.imencode(
@@ -221,15 +395,28 @@ class SafeZoneAssistant:
         target_summary = ", ".join(
             f"{name} (YOLO confidence {score:.2f})"
             for name, score in targets.items()
-        )
+        ) or "no scissors or earbuds confirmed by the local detector"
         prompt = (
-            "This is one event-triggered still image from a safety-assistant demo. "
-            f"The local detector reported: {target_summary}. "
-            "Return only a short, neutral phrase (at most 12 words) describing "
-            "where the detected object appears in the scene. Do not describe or "
-            "identify people, clothing, use, intent, or policy compliance. Do not "
-            "claim anyone is wearing earbuds. If the location is unclear, reply "
-            "exactly: position unclear."
+            "Write one calm, respectful spoken SafeZone message to the person "
+            "viewing this image. Be concise and use no more than 50 words. "
+            "Local detector results "
+            f"(possible objects, not certainty): {target_summary}. Describe only "
+            "clearly visible scene details: object location, a person's position "
+            "relative to it, sitting/standing posture, and clothing color only if "
+            "unambiguous. A still image cannot establish movement, identity, "
+            "gender, intent, danger, injury, or a rule violation. Do not address "
+            "the person as sir/madam, accuse or threaten them, or say they will be "
+            "reported. Do not imply a person is holding, using, or wearing a "
+            "detected object unless that association is unmistakably visible; "
+            "object detection alone cannot establish this, and earbuds detection "
+            "does not prove they are worn. If an object is not clearly associated "
+            "with a person, do not single anyone out: thank them for helping keep "
+            "the workspace safe and, if useful, neutrally mention the possible "
+            "object and its visible location. If no target is detected, give a "
+            "brief positive thank-you without suggesting a violation. No "
+            "workspace policy was provided: never claim an item is prohibited; "
+            "when relevant, gently suggest checking local safety guidance. Return "
+            "only the spoken message."
         )
         response = self.client.chat.completions.create(
             model=self.model,
@@ -250,46 +437,58 @@ class SafeZoneAssistant:
         )
         content = response.choices[0].message.content
         if not isinstance(content, str):
-            rospy.logwarn("Qwen returned no plain-text visual context")
-            return ""
+            self._status("Qwen returned no plain-text visual context.")
+            return "", ""
 
-        context = " ".join(content.split()).strip(" .")
-        if not context or len(context) > 120:
-            rospy.logwarn("Ignoring empty or overly long Qwen visual context")
-            return ""
+        qwen_response = content.strip()
+        context = " ".join(qwen_response.split()).strip(" .")
+        if not context or len(context.split()) > 50 or len(context) > 400:
+            self._status("Ignoring empty or overly long Qwen spoken message.")
+            return qwen_response, ""
         lowered = context.lower()
-        if any(term in lowered for term in UNSAFE_CONTEXT_TERMS):
-            rospy.logwarn("Ignoring Qwen context that exceeded the safety prompt")
-            return ""
-        return context
+        if (
+            any(term in lowered for term in UNSAFE_CONTEXT_TERMS)
+            or UNSUPPORTED_GENDER_WORDS.search(context)
+        ):
+            self._status("Ignoring Qwen context with unsupported safety conclusions.")
+            return qwen_response, ""
+        self._status(f"Qwen scene context: {context}")
+        return qwen_response, context
+
+    def _close_preview(self):
+        if not self.show_preview:
+            return
+        try:
+            cv2.destroyWindow(self.PREVIEW_WINDOW)
+        except cv2.error:
+            pass
 
     @staticmethod
     def _safety_message(targets):
-        if targets == {"scissors"}:
+        if not targets:
             return (
-                "SafeZone detected possible scissors in view. Please handle and "
-                "store them according to local safety rules."
+                "Thank you for helping keep the workspace safe. No scissors or "
+                "earbuds were clearly detected in this frame."
             )
-        if targets == {"earbuds"}:
+        if set(targets) == {"scissors"}:
             return (
-                "SafeZone detected possible earbuds in view. This does not confirm "
-                "anyone is wearing them; please follow local rules."
+                "Possible scissors are visible. Please check local safety guidance "
+                "if they are in use. Thank you for helping keep the workspace safe."
+            )
+        if set(targets) == {"earbuds"}:
+            return (
+                "Possible earbuds are visible; this does not show whether anyone "
+                "is wearing them. Thank you for helping keep the workspace safe."
             )
         return (
-            "SafeZone detected possible scissors and earbuds in view. Please check "
-            "the situation and follow local safety rules. Detection does not "
-            "confirm anyone is wearing the earbuds."
+            "Possible scissors and earbuds are visible; this does not show whether "
+            "anyone is using or wearing them. Thank you for helping keep the "
+            "workspace safe, and please check local safety guidance if relevant."
         )
 
     def _shutdown(self):
-        with self.lock:
-            self.active = False
-            if self.image_subscriber is not None:
-                self.image_subscriber.unregister()
-                self.image_subscriber = None
-            if self.window_timer is not None:
-                self.window_timer.shutdown()
-                self.window_timer = None
+        self.camera_subscriber.unregister()
+        self._close_preview()
 
 
 if __name__ == "__main__":

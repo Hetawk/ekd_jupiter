@@ -11,17 +11,12 @@ import torch.backends.cudnn as cudnn
 import numpy as np
 
 
-package = Path(__file__).resolve().parents[1].name
-print('package:', package)
-
 workspace = Path(__file__).resolve().parents[5]
-print('workspace:', workspace)
 
 # Original catkin_ws settings: ROOT = Path(__file__).resolve().parents[6] / 'yolov5'
 # weights = ROOT / 'yolov5s.pt'; data = ROOT / 'data/coco128.yaml'
 # Prior EKD layout used the sibling path Path.home() / 'ekd_yolov5'.
 ROOT = workspace / 'ekd_yolov5'
-print('ROOT:', ROOT)
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
@@ -153,7 +148,7 @@ class Detector:
                             f'{self.names[c]} {conf:.2f}'))
                     annotator.box_label(xyxy, label, color=colors(c, True))
 
-            return img0, result
+            return annotator.result() if self.view_img else img0, result
         else:
             return img0, []
 
