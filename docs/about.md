@@ -552,13 +552,20 @@ The following table distinguishes completed work from remaining implementation a
 | Independent dataset-lineage audit        | Pending        |
 | Independent test benchmark               | Pending        |
 | Jupiter hardware inspection              | Pending        |
-| Jupiter runtime deployment               | Pending        |
-| Live camera integration                  | Pending        |
+| SafeZone wake/detection/Qwen/TTS demo flow | Implemented; hardware validation pending |
+| Jupiter runtime deployment               | Hardware validation pending |
+| Live camera integration                  | Implemented in demo launch; hardware validation pending |
 | Workspace-zone enforcement               | Pending        |
 | Temporal compliance monitoring           | Pending        |
-| Audio warning integration                | Pending        |
+| Audio warning integration                | Implemented through Jupiter `/voiceWords`; hardware validation pending |
 | Incident logging integration             | Pending        |
 | Integrated robot evaluation              | Pending        |
+
+### SafeZone robot demo flow
+
+The demo is inference-only and uses the existing checkpoint; it does not train a model. Run `docs/safezone.sh` from one terminal to start the Jupiter camera, local “Hey EKD” wake-word listener, detector, and Jupiter text-to-speech node. Saying “Hey EKD” opens a brief camera-monitoring window. YOLO checks only for scissors and earbuds; on a target detection, SafeZone stops monitoring and sends one still image—not a continuous video stream—to the configured `qwen3.8-max` endpoint for brief scene-location context. The assistant then publishes a safety message to `/voiceWords`. Without `EKD_QWEN_API_KEY` or if the Qwen request fails, the detector-based safety message is still spoken without visual context.
+
+Qwen is not asked to identify people, infer clothing, determine whether earbuds are being worn, or decide policy compliance. Those capabilities, along with workspace-zone enforcement, incident logging, and live robot validation, remain outside the current demo. For the one-terminal launch command, see [`safezone.sh`](./safezone.sh).
 
 ### Current Model Evidence
 

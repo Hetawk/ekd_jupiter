@@ -173,3 +173,13 @@
 - Updated `src/rfa-vision/rfa_vlm/scripts/object_detection.py` and `image_recognition.py` to use `qwen3.8-max`, matching `image_recognition_qwen.py` on the same Qwen-compatible endpoint and `EKD_QWEN_API_KEY`.
 - Kept the previous `gpt-4o-mini` model and former OpenAI base URL as comments; no credential value was added to source.
 - Validation: confirmed the EKD Qwen variable is available without printing its value; Python syntax check passed for both changed scripts.
+
+## 2026-11-10: Align SafeZone and chatbot Qwen Max settings
+
+- Changed `src/rfa-speech/rfa_gpt/config/qwen.yaml` from `qwen-plus` to `qwen3.8-max`; retained `qwen-plus` as a comment. The configured `BASE_URL` remains exactly `https://llm-orqx90gtcezlx878.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`.
+- Changed SafeZone's Qwen image-context configuration in `src/jupiterobot2/jupiterobot2_vision/jupiterobot2_vision_yolov5/scripts/safezone_assistant.py` from the DashScope endpoint, `EKD_DASHSCOPE_API_KEY`, and `qwen-omni-turbo` to the same configured MAAS endpoint, `EKD_QWEN_API_KEY`, and `qwen3.8-max`. The previous endpoint, key-variable name, and model are retained as comments.
+- Alibaba Cloud's [Model Studio text-generation documentation](https://help.aliyun.com/zh/model-studio/text-generation-model) lists `qwen3.8-max` as the Max model and confirms Max accepts image input.
+- Updated `about.md` and `COMMANDS.md` to document the SafeZone demo flow, one-terminal launch, Qwen configuration, and remaining hardware-validation limits.
+- Pre-test validation: `catkin_make` completed successfully; `roslaunch --nodes jupiterobot2_vision_yolov5 safezone_demo.launch` resolved the camera, wake listener, assistant, and TTS nodes; the checkpoint loaded and ran local inference on a sample image with only the `scissors` and `earbuds` classes; the PocketSphinx GStreamer pipeline ran on synthetic audio; and `qwen_call.py` passed a mocked completion using the configured URL and `qwen3.8-max`.
+- Also confirmed the Qwen YAML's exact `BASE_URL`, Python syntax, SafeZone launch XML, launcher Bash syntax, available ALSA capture-device listings, and `git diff --check`.
+- No microphone audio was recorded, no Qwen API request was sent, and no robot camera or speaker session was run. Those checks remain for the supervised on-robot test.

@@ -29,7 +29,7 @@ class ObjectDetection():
     def __init__(self):
         rospy.init_node('object_detection')
 
-        self.detector = Detector()
+        self.detector = Detector(view_img=True)
 
         self.bridge = CvBridge()
 
@@ -86,4 +86,3 @@ if __name__ == "__main__":
         rospy.spin()
     except KeyboardInterrupt:
         pass
-

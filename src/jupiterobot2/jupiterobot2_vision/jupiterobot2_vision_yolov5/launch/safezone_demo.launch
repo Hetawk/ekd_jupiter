@@ -1,0 +1,38 @@
+<launch>
+  <arg name="camera_topic" default="/camera/color/image_raw"/>
+  <arg name="window_seconds" default="10.0"/>
+  <arg name="processing_interval" default="0.35"/>
+  <arg name="audio_source" default="alsasrc"/>
+  <arg name="acoustic_model" default="/usr/local/share/pocketsphinx/model/en-us/en-us"/>
+
+  <include file="$(find jupiterobot2_bringup)/launch/multi_camera.launch">
+    <arg name="scan_processing" value="false"/>
+  </include>
+
+  <node pkg="jupiterobot2_vision_yolov5"
+        type="safezone_wake.py"
+        name="safezone_wake"
+        output="screen">
+    <param name="keyword" value="hey ekd"/>
+    <param name="cooldown_seconds" value="3.0"/>
+    <param name="source" value="$(arg audio_source)"/>
+    <param name="hmm" value="$(arg acoustic_model)"/>
+    <param name="dict" value="$(find jupiterobot2_vision_yolov5)/config/safezone_wake.dic"/>
+    <param name="kws" value="$(find jupiterobot2_vision_yolov5)/config/safezone_wake.kws"/>
+  </node>
+
+  <node pkg="jupiterobot2_vision_yolov5"
+        type="safezone_assistant.py"
+        name="safezone_assistant"
+        output="screen">
+    <param name="camera_topic" value="$(arg camera_topic)"/>
+    <param name="window_seconds" value="$(arg window_seconds)"/>
+    <param name="processing_interval" value="$(arg processing_interval)"/>
+    <param name="confidence" value="0.25"/>
+  </node>
+
+  <node pkg="jupiterobot2_voice_xf"
+        type="tts_subscribe"
+        name="safezone_tts"
+        output="screen"/>
+</launch>

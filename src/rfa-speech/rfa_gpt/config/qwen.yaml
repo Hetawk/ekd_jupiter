@@ -2,7 +2,8 @@
 # BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1"
 BASE_URL: "https://llm-orqx90gtcezlx878.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
 
-MODEL: "qwen-plus"
+# Previous model: "qwen-plus"
+MODEL: "qwen3.8-max"
 
 TITLE: "Control the University Open Day robot."
 
@@ -34,4 +35,3 @@ INFO: "facilities:
         Science and Engineering Showcase (Science Building, 11:00 AM - 1:00 PM)
         Art Exhibition and Student Gallery (Arts Building, 12:30 AM - 4:00 PM)
         Meet the Faculty: Q&A Panels (Lecture Hall Complex, 2:00 PM - 4:00 PM)"
-
