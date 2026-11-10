@@ -1,0 +1,2 @@
+OUTPUT_TOPIC: "/gpt_out"
+INPUT_TOPIC: "/gpt_in"

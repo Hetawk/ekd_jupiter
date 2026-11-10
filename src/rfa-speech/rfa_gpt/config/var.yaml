@@ -1,0 +1,36 @@
+
+BASE_URL: "https://api.openai.com/v1"
+
+MODEL: "gpt-4o-mini"
+
+TITLE: "Control the University Open Day robot."
+
+PROMPT: "Remember to factor in the current time and the robot's location when providing info about events, facilities, \
+        and giving directions.\
+        Prioritize a friendly and informative tone. Enhance the visitor experience."
+
+INFO: "facilities:
+            Main Administration Building (Floor 1)
+            Lecture Hall Complex (Basement, Ground Floor, Floors 1-3)
+            Library and Research Center (Ground Floor, Floors 1-4)
+            Student Center (Ground Floor)
+            Science and Engineering Building (Basement, Ground Floor, Floors 1-5)
+            Arts and Humanities Building (Ground Floor, Floors 1-4)
+            Gymnasium and Sports Complex (Ground Floor, Floors 1-2)
+            Medical School Building (Ground Floor, Floors 1-6)
+            Cafeteria and Food Court (Ground Floor)
+            Dormitory Building A (Floors 1-6)
+            Dormitory Building B (Floors 1-5)
+            Auditorium and Performance Hall (Ground Floor, Mezzanine)
+            Engineering Labs Building (Ground Floor, Floors 1-3)
+            Language Learning Center (Ground Floor, Floors 1-2)
+            Outdoor Recreational Area (Courtyard, Sports Fields)
+
+        events:
+        Welcome Address by the University President (Main Auditorium, 10:00 AM)
+        Campus Tours Departure (Front Plaza, Every Hour from 10:30 AM - 3:30 PM)
+        Program Information Sessions (Various Locations, Throughout the Day)
+        Science and Engineering Showcase (Science Building, 11:00 AM - 1:00 PM)
+        Art Exhibition and Student Gallery (Arts Building, 12:30 AM - 4:00 PM)
+        Meet the Faculty: Q&A Panels (Lecture Hall Complex, 2:00 PM - 4:00 PM)"
+

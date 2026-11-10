@@ -1,0 +1,14 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/mustar/ekd_catkin_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/opt/intel/openvino_2023.3.0/python",
+        "/opt/intel/openvino_2023.3.0/python/python3"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/mustar/ekd_catkin_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/opt/intel/openvino_2023.3.0/python",
+        "/opt/intel/openvino_2023.3.0/python/python3"
+    ]
+}

@@ -1,0 +1,8 @@
+# Exploratory SafeZone 70/15/15 split
+path: datasets/sz-mod-70-15-15
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 2
+names: ['scissors', 'earbuds']

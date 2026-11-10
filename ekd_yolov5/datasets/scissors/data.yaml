@@ -1,0 +1,13 @@
+path: datasets/scissors
+names:
+- scissors
+nc: 1
+roboflow:
+  license: CC BY 4.0
+  project: scissors-detection-rw9ow-7ygvi
+  url: https://universe.roboflow.com/ekd-ekddigital-com/scissors-detection-rw9ow-7ygvi/dataset/2
+  version: 2
+  workspace: ekd-ekddigital-com
+test: test/images
+train: train/images
+val: valid/images

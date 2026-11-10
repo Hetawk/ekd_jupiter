@@ -1,0 +1,16 @@
+SafeZone sz-mod final held-out test evaluation
+Date: 2026-11-09
+Checkpoint: runs/train/sz-mod/weights/best.pt
+Dataset configuration: data/sz-mod.yaml
+Split: test
+Images: 70
+Labels: 86
+Image size: 640
+Device: GPU 3, Tesla T4
+
+Command:
+yolo_run val.py --data data/sz-mod.yaml --weights runs/train/sz-mod/weights/best.pt --img 640 --task test --device 3
+
+The evaluation summary is stored in metrics.csv. YOLOv5 prediction/label
+visualizations and precision/recall curves are in this directory. The test
+split is held out and should not be used for model tuning.

@@ -1,0 +1,10 @@
+<launch>
+    <!-- 运行摄像头节点 -->
+    <!-- <include file="$(find astra_camera)/launch/astra.launch"/> -->
+    <node name="qwen_img" pkg="qwen_ros" type="qwen_img_describe.py" output="screen"/>
+    <node pkg="jupiterobot2_voice_xf" type="iat_publish" name="xf_iat_qwen" output="screen">
+        <remap from="/voiceWords" to="/qwen_img_in"/>
+        <remap from="/voiceWakeup" to="/qwen_img_Wakeup"/>
+    </node>
+
+</launch>

@@ -1,0 +1,9 @@
+# Scissors detection dataset (Roboflow v2)
+# Run from the YOLOv5 project root: python train.py --data data/scissors.yaml
+path: datasets/scissors
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 1
+names: ['scissors']

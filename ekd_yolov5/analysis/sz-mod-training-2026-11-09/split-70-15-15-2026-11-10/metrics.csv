@@ -1,0 +1,7 @@
+split,class,images,labels,precision,recall,map50,map50_95
+validation,all,133,150,0.879,0.833,0.860,0.577
+validation,scissors,133,68,0.943,0.971,0.957,0.727
+validation,earbuds,133,82,0.815,0.695,0.762,0.428
+test,all,134,150,0.900,0.851,0.893,0.618
+test,scissors,134,72,0.985,0.907,0.974,0.741
+test,earbuds,134,78,0.816,0.795,0.812,0.496

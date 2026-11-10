@@ -1,0 +1,8 @@
+<launch>
+
+    <node pkg="qwen_ros" type="qwen_call.py" name="qwen_ros" output="screen"/>
+    <node pkg="jupiterobot2_voice_xf" type="iat_publish" name="xf_iat" output="screen">
+        <remap from="/voiceWords" to="/qwen_in"/>
+        <remap from="/voiceWakeup" to="/qwen_Wakeup"/>
+    </node>
+</launch>

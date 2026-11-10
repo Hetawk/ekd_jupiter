@@ -1,0 +1,13 @@
+run,checkpoint,split,class,images,labels,precision,recall,map_0_5,map_0_5_0_95
+sz-mod-100,best.pt,validation,all,70,83,0.903,0.817,0.850,0.549
+sz-mod-100,best.pt,validation,scissors,70,31,0.994,1.000,0.995,0.718
+sz-mod-100,best.pt,validation,earbuds,70,52,0.813,0.635,0.705,0.381
+sz-mod-100,best.pt,test,all,70,86,0.815,0.729,0.764,0.475
+sz-mod-100,best.pt,test,scissors,70,30,0.940,0.900,0.951,0.673
+sz-mod-100,best.pt,test,earbuds,70,56,0.691,0.559,0.577,0.277
+sz-mod-s-70-15-15-100-20261110,best.pt,validation,all,133,150,0.879,0.833,0.860,0.577
+sz-mod-s-70-15-15-100-20261110,best.pt,validation,scissors,133,68,0.943,0.971,0.957,0.727
+sz-mod-s-70-15-15-100-20261110,best.pt,validation,earbuds,133,82,0.815,0.695,0.762,0.428
+sz-mod-s-70-15-15-100-20261110,best.pt,test-exploratory,all,134,150,0.900,0.851,0.893,0.618
+sz-mod-s-70-15-15-100-20261110,best.pt,test-exploratory,scissors,134,72,0.985,0.907,0.974,0.741
+sz-mod-s-70-15-15-100-20261110,best.pt,test-exploratory,earbuds,134,78,0.816,0.795,0.812,0.496

@@ -1,0 +1,40 @@
+<RCC>
+  <qresource prefix="media">
+    <file>keyboard_control.png</file>
+    <file>保存.png</file>
+    <file>med识别.png</file>
+    <file>坐标.png</file>
+    <file>语音识别.png</file>
+    <file>语音控制.png</file>
+    <file>语音合成.png</file>
+    <file>yolo.png</file>
+    <file>手势拍照.png</file>
+    <file>摄像头.png</file>
+    <file>人脸识别.png</file>
+    <file>人脸检测.png</file>
+    <file>人脸真伪.png</file>
+    <file>目标跟踪.png</file>
+    <file>键盘.png</file>
+    <file>机械臂.png</file>
+    <file>跟随.png</file>
+    <file>服务员.png</file>
+    <file>多点导航.png</file>
+    <file>地图.png</file>
+    <file>导航.png</file>
+    <file>llm.png</file>
+    <file>vosk.png</file>
+    <file>mask.png</file>
+    <file>hand_detect.png</file>
+    <file>pose.png</file>
+    <file>qwen_img.png</file>
+    <file>举手.png</file>
+    <file>手绘.png</file>
+    <file>jupiter_tel_logo.png</file>
+    <file>surprised.png</file>
+    <file>生成图片.png</file>
+    <file>slice_ico.png</file>
+    <file>bird.png</file>
+    
+    
+  </qresource>
+</RCC>

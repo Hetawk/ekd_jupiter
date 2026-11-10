@@ -1,0 +1,9 @@
+<launch>
+    <!-- <include file="$(find astra_camera)/launch/astra.launch"/> -->
+    <include file="$(find jupiterobot2_vision_mediapipe)/launch/mediapipe_pose.launch"/>
+    <node pkg='turtlesim' type='turtlesim_node' name='turtle'/>
+    <node pkg='pose_control_turtle' type='pose_control_turtle.py' name='pose_control_turtle'/>
+    <node pkg="pose_control_turtle" type="turtle_tf_pub.py" name="tf_pub1" args="turtle1"/>
+    <node pkg="pose_control_turtle" type="turtle_tf_pub.py" name="tf_pub2" args="turtle2"/>
+    <node pkg="pose_control_turtle" type="turtle_tf_sub.py" name="tf_sub2"/>
+</launch>

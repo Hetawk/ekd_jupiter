@@ -1,0 +1,4 @@
+split,class,images,labels,precision,recall,map_0_5,map_0_5_0_95
+test,all,70,86,0.815,0.729,0.764,0.475
+test,scissors,70,30,0.940,0.900,0.951,0.673
+test,earbuds,70,56,0.691,0.559,0.577,0.277

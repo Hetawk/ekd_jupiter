@@ -1,0 +1,11 @@
+<launch>
+    <node pkg="jupiterobot2_qt" type="Robot_main.py" name="Robot_main" output="screen" />
+    <node pkg="jupiterobot2_qt" type="tts_qwen.py" name="tts_qwen" output="screen" />
+    <node pkg="jupiterobot2_voice_xf" type="iat_publish" name="iat_publish" output="screen">
+        <remap from="/voiceWords" to="/iat_result" />
+    </node>
+    <node pkg="jupiterobot2_voice_xf" type="tts_subscribe" name="tts_subscribe" output="screen"/>
+    <include file="$(find astra_camera)/launch/astra.launch" />
+    <include file="$(find qwen_ros)/launch/qwen_img.launch" />
+    <include file="$(find qwen_ros)/launch/qwen.launch" />
+</launch>

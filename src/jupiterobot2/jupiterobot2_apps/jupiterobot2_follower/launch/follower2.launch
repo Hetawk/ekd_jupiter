@@ -1,0 +1,8 @@
+<launch>
+
+  <include file="$(find jupiterobot2_bringup)/launch/multi_camera.launch"/>
+  <node name="jupiterobot2_follower" pkg="jupiterobot2_follower" type="jupiterobot2_follower" output="screen">
+    <param name="enabled" value="false"/>
+  </node>
+
+</launch>

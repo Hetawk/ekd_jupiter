@@ -1,0 +1,22 @@
+/.env
+
+# Catkin outputs and timestamped rebuild backups
+/build/
+/devel/
+/install/
+/log/
+/build.before-*/
+/devel.before-*/
+
+# Python and CMake generated files
+**/__pycache__/
+*.py[cod]
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+
+# Embedded repository metadata (keep any needed history outside this repo)
+**/.git/
+
+# Stray empty file created during workspace setup
+/ekd_catkin_ws

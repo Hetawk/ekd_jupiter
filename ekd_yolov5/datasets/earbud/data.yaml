@@ -1,0 +1,13 @@
+path: datasets/earbud
+names:
+- Earbud
+nc: 1
+roboflow:
+  license: CC BY 4.0
+  project: earbud-h45y9-idbzn
+  url: https://app.roboflow.com/ekd-ekddigital-com/earbud-h45y9-idbzn/1
+  version: 1
+  workspace: ekd-ekddigital-com
+test: test/images
+train: train/images
+val: valid/images

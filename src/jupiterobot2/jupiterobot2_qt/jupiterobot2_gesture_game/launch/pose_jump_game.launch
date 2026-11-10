@@ -1,0 +1,5 @@
+<launch>
+    <include file="$(find astra_camera)/launch/astra.launch"/>
+    <node pkg="jupiterobot2_gesture_game" type="pose_jump_game.py" name="pose_jump_game" output="screen"/>
+
+</launch>

@@ -1,0 +1,7 @@
+<launch>
+
+    <node pkg="rfa_gpt" type="gpt.py" name="rfa_gpt" output="screen">
+        <rosparam file="$(find rfa_gpt)/config/config.yaml" command="load"/>
+    </node>
+
+</launch>

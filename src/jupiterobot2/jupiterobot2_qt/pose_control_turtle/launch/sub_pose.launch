@@ -1,0 +1,4 @@
+<launch>
+    <include file="$(find astra_camera)/launch/astra.launch"/>
+    <include file="$(find robot_vision_openvino)/launch/openpose_ros.launch"/>
+</launch>

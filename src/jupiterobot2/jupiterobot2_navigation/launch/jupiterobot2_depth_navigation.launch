@@ -1,0 +1,34 @@
+<launch>
+
+  <arg name="sim" default="false"/>
+  <!-- Multi camera -->
+  <group unless="$(arg sim)">
+    <include file="$(find jupiterobot2_bringup)/launch/multi_camera.launch"/>
+  </group>
+
+  <!-- Arguments -->
+  <arg name="map_file" default=""/>
+  <arg name="open_rviz" default="true"/>
+  <arg name="move_forward_only" default="false"/>
+
+  <!-- Map server -->
+  <node pkg="map_server" name="map_server" type="map_server" args="$(arg map_file)"/>
+
+  <!-- AMCL -->
+  <include file="$(find jupiterobot2_navigation)/launch/includes/depth_amcl.launch"/>
+
+  <!-- move_base -->
+  <include file="$(find jupiterobot2_navigation)/launch/includes/depth_move_base.launch">
+    <arg name="move_forward_only" value="$(arg move_forward_only)"/>
+  </include>
+
+  <!-- rviz -->
+  <group if="$(arg open_rviz)">
+    <node pkg="rviz" type="rviz" name="rviz" required="true"
+          args="-d $(find jupiterobot2_navigation)/rviz/depth_navigation.rviz"/>
+  </group>
+
+  <!-- scan around-->
+  <node pkg="jupiterobot2_navigation" name="base_adj_for_nav" type="base_adjust_for_navigation.py" output="screen"/>
+
+</launch>

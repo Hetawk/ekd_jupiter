@@ -1,0 +1,9 @@
+# Earbud detection dataset (Roboflow v1)
+# Run from the YOLOv5 project root: python train.py --data data/earbud.yaml
+path: datasets/earbud
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 1
+names: ['Earbud']

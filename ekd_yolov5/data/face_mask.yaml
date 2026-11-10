@@ -1,0 +1,18 @@
+# Face Mask Detection Dataset Configuration
+# This file is used by YOLOv5 detector for inference
+# Dataset location is relative to yolov5/ directory
+
+path: dataset/mask # relative path from yolov5/ directory
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 3
+names: ["mask_weared_incorrect", "with_mask", "without_mask"] # MUST match training order
+
+roboflow:
+  workspace: project0-ju8av
+  project: project1-t2rcl
+  version: 1
+  license: MIT
+  url: https://universe.roboflow.com/project0-ju8av/project1-t2rcl/dataset/1

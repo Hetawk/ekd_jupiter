@@ -1,0 +1,215 @@
+#O1
+{
+    border-radius: 10px;
+    border: 0px;
+    color:#f8f7f0;
+}
+
+#O2
+{
+    border-radius: 10px;
+    border: 0px;
+    color:#f8f7f0;
+}
+
+#O3
+{
+    border-radius: 10px;
+    border: 0px;
+    color:#f8f7f0;
+}
+
+#O4
+{
+    border-radius: 10px;
+    border: 0px;
+    color:#f8f7f0;
+    
+}
+
+#O5
+{
+    border: 2px  solid #000000;
+    color:#f8f7f0;
+    border-radius: 10px;
+}
+
+#O6
+{
+    border-radius: 10px;
+    border: 0px;
+    color:#f8f7f0;
+}
+
+#O7
+{
+    border-radius: 10px;
+    border: 0px;
+    color:#f8f7f0;
+}
+
+#O8
+{
+    border-radius: 10px;
+    border: 0px;
+    color:#f8f7f0;
+}
+
+#stackedWidget
+{
+    border: 2px solid #000000;
+    border-radius: 20px;
+}
+
+#label_logo
+{
+    background-color: #f8f7f0;
+}
+
+#kill_all
+{
+    border-radius: 10px;
+    background-color: #d33328;
+}
+
+.QPushButton
+{
+    border-top: 1px solid #000000;
+    border-left: 1px solid #000000;
+    border-bottom: 2px solid #2c2b2b;
+    border-right: 2px solid #2c2b2b;
+    border-radius: 10px; 
+    background-color: #006699;
+    color:#f8f7f0;
+    font-family: "宋体", "Microsoft YaHei", "微软雅黑";
+    font:bold;
+
+}
+
+#close_current
+{
+    border-top: 1px solid #000000;
+    border-left: 1px solid #000000;
+    border-bottom: 2px solid #2c2b2b;
+    border-right: 2px solid #2c2b2b;
+    border-radius: 10px; 
+    background-color: #c90202;
+    color:#f8f7f0;
+    font-family: "宋体", "Microsoft YaHei", "微软雅黑";
+    font:bold;
+
+}
+
+#close_current1
+{
+    border-top: 1px solid #000000;
+    border-left: 1px solid #000000;
+    border-bottom: 2px solid #2c2b2b;
+    border-right: 2px solid #2c2b2b;
+    border-radius: 10px; 
+    background-color: #c90202;
+    color:#f8f7f0;
+    font-family: "宋体", "Microsoft YaHei", "微软雅黑";
+    font:bold;
+
+}
+
+#qwen_chat
+{
+    border-top: 2px solid #000000;
+    border-left: 2px solid #000000;
+    border-bottom: 4px solid #2c2b2b;
+    border-right: 4px solid #2c2b2b;
+    background-color: #f8f7f0;
+    color:#006699;
+}
+
+#label_5
+{
+    color:#f8f7f0;
+}
+
+#label_7
+{
+    color:#f8f7f0;
+}
+
+#label_13
+{
+    color:#f8f7f0;
+}
+
+#label_15
+{
+    color:#f8f7f0;
+}
+
+#qwen_out
+{
+    background-color: #f8f7f0;
+}
+
+#qwen_img_out
+{
+    background-color: #f8f7f0;
+}
+
+#lineEdit
+{
+    background-color: #ffffff;
+}
+
+#wanx_text
+{
+    border: 0px
+}
+
+#label_11
+{
+    border-bottom: 2px solid #000000;
+    background-color: #f8f7f0;
+}
+
+#image_generation_show
+{
+    border: 1px solid #000000;
+}
+
+#scene
+{
+    border: 1px solid #000000;
+}
+
+#main_item
+{
+    border: 1px solid #000000;
+}
+
+.QLineEdit
+{
+    border: 1px solid #000000;
+    border-radius: 3px; 
+    background-color: #f8f7f0;
+}
+
+.QLabel
+{
+    font-family: "宋体";
+    color:#006699;
+    font-weight: bold;
+}
+
+#MainWindow
+{
+    background-color: #f8f7f0;
+}
+
+#widget_2
+{
+    border-radius: 20px;
+    background-color: #006699;
+    border-right: 2px solid #000000;
+    border-left: 2px solid #000000;
+    border-top: 2px solid #000000;
+    border-bottom: 2px solid #000000;
+}

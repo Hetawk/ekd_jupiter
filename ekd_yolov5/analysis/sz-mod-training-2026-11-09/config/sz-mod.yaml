@@ -1,0 +1,8 @@
+# SafeZone Multi-Object Detection Dataset (sz-mod)
+path: datasets/sz-mod
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 2
+names: ['scissors', 'earbuds']
