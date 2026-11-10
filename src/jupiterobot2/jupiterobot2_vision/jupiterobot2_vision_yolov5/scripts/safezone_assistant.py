@@ -84,6 +84,22 @@ class SafeZoneAssistant:
         self.show_preview = bool(rospy.get_param("~show_preview", True))
         if self.processing_interval <= 0:
             raise ValueError("processing_interval must be positive")
+        self.policy_mode = rospy.get_param("~policy_mode", "schedule")
+        if self.policy_mode not in {"schedule", "work", "off_duty"}:
+            raise ValueError(
+                "policy_mode must be schedule, work, or off_duty"
+            )
+        self.work_start = self._parse_schedule_time(
+            rospy.get_param("~work_start", ""), "work_start"
+        )
+        self.work_end = self._parse_schedule_time(
+            rospy.get_param("~work_end", ""), "work_end"
+        )
+        self.breaks = self._parse_breaks(rospy.get_param("~breaks", ""))
+        if (self.work_start is None) != (self.work_end is None):
+            raise ValueError("work_start and work_end must both be configured")
+        if self.work_start is not None and self.work_start == self.work_end:
+            raise ValueError("work_start and work_end must be different")
 
         self.event_directory = Path(
             os.path.expanduser(
@@ -94,6 +110,7 @@ class SafeZoneAssistant:
             self.event_directory.mkdir(
                 parents=True, exist_ok=True, mode=0o700
             )
+            os.chmod(self.event_directory, 0o700)
         except OSError as error:
             raise RuntimeError(
                 f"Could not create SafeZone event directory "
@@ -177,12 +194,17 @@ class SafeZoneAssistant:
         rospy.on_shutdown(self._shutdown)
         self._status("Ready. Live camera detection is running continuously.")
         self._status(
-            "Say a wake phrase to save and send one current scene image for feedback."
+            f"Policy profile: {self._policy_status()}. Say a wake phrase to "
+            "capture one scene image for feedback."
         )
         self._record_event(
             "assistant_started",
             camera_topic=self.camera_topic,
             processing_interval_seconds=self.processing_interval,
+            policy_mode=self.policy_mode,
+            work_start=str(self.work_start) if self.work_start else None,
+            work_end=str(self.work_end) if self.work_end else None,
+            breaks=[(str(start), str(end)) for start, end in self.breaks],
             preview_enabled=self.show_preview,
             event_log=str(self.event_log_path),
         )
@@ -216,6 +238,7 @@ class SafeZoneAssistant:
     def _on_wake(self, message):
         event_id = uuid.uuid4().hex
         wake_phrase = message.data.strip()
+        captured_at = datetime.now().astimezone()
         with self.lock:
             if self.processing:
                 self._record_event(
@@ -238,6 +261,7 @@ class SafeZoneAssistant:
             targets = dict(self.latest_targets)
             frame_time = self.latest_frame_time
             self.processing = True
+        policy_mode = self._active_policy_mode(captured_at)
 
         image_path = self.event_directory / f"{event_id}.jpg"
         try:
@@ -253,6 +277,8 @@ class SafeZoneAssistant:
             "wake_capture",
             event_id,
             wake_phrase=wake_phrase,
+            policy_mode=policy_mode,
+            captured_at=captured_at.isoformat(timespec="seconds"),
             camera_frame_timestamp=frame_time,
             image_path=saved_image,
             detections=targets,
@@ -263,7 +289,7 @@ class SafeZoneAssistant:
         )
         worker = threading.Thread(
             target=self._analyze_and_speak,
-            args=(event_id, frame, targets, saved_image),
+            args=(event_id, frame, targets, saved_image, policy_mode, captured_at),
             name="safezone-qwen-event",
             daemon=True,
         )
@@ -346,7 +372,9 @@ class SafeZoneAssistant:
                 confidence=round(score, 4),
             )
 
-    def _analyze_and_speak(self, event_id, frame, targets, image_path):
+    def _analyze_and_speak(
+        self, event_id, frame, targets, image_path, policy_mode, captured_at
+    ):
         context = ""
         qwen_response = ""
         qwen_status = "skipped_no_api_key"
@@ -365,7 +393,9 @@ class SafeZoneAssistant:
             self._status(f"Could not prepare the event image: {error}")
 
         try:
-            message = context or self._safety_message(targets)
+            message = self._safety_message(
+                targets, policy_mode, context, captured_at
+            )
             self.response_publisher.publish(String(data=message))
             self.speech_publisher.publish(String(data=message))
             self._status(f"Spoken response: {message}")
@@ -374,6 +404,7 @@ class SafeZoneAssistant:
                 event_id,
                 image_path=image_path,
                 detections=targets,
+                policy_mode=policy_mode,
                 qwen_status=qwen_status,
                 qwen_response=qwen_response,
                 visual_context=context,
@@ -397,26 +428,16 @@ class SafeZoneAssistant:
             for name, score in targets.items()
         ) or "no scissors or earbuds confirmed by the local detector"
         prompt = (
-            "Write one calm, respectful spoken SafeZone message to the person "
-            "viewing this image. Be concise and use no more than 50 words. "
-            "Local detector results "
-            f"(possible objects, not certainty): {target_summary}. Describe only "
-            "clearly visible scene details: object location, a person's position "
-            "relative to it, sitting/standing posture, and clothing color only if "
-            "unambiguous. A still image cannot establish movement, identity, "
-            "gender, intent, danger, injury, or a rule violation. Do not address "
-            "the person as sir/madam, accuse or threaten them, or say they will be "
-            "reported. Do not imply a person is holding, using, or wearing a "
-            "detected object unless that association is unmistakably visible; "
-            "object detection alone cannot establish this, and earbuds detection "
-            "does not prove they are worn. If an object is not clearly associated "
-            "with a person, do not single anyone out: thank them for helping keep "
-            "the workspace safe and, if useful, neutrally mention the possible "
-            "object and its visible location. If no target is detected, give a "
-            "brief positive thank-you without suggesting a violation. No "
-            "workspace policy was provided: never claim an item is prohibited; "
-            "when relevant, gently suggest checking local safety guidance. Return "
-            "only the spoken message."
+            "Describe the visible scene neutrally in at most 25 words. The local "
+            f"detector reports these possible objects (not certainty): {target_summary}. "
+            "Mention only clearly visible location, posture, and unambiguous "
+            "clothing or headwear colors. Do not identify a person, infer gender, "
+            "age, movement, intent, danger, injury, rule compliance, or claim an "
+            "object belongs to or is being used by someone unless unmistakably "
+            "visible. Detection of earbuds does not prove they are being worn. "
+            "Do not give a policy warning or thank-you; the local safety policy "
+            "module will create the spoken response. Return only the brief scene "
+            "description, or 'No person or target is clearly visible.'"
         )
         response = self.client.chat.completions.create(
             model=self.model,
@@ -442,8 +463,8 @@ class SafeZoneAssistant:
 
         qwen_response = content.strip()
         context = " ".join(qwen_response.split()).strip(" .")
-        if not context or len(context.split()) > 50 or len(context) > 400:
-            self._status("Ignoring empty or overly long Qwen spoken message.")
+        if not context or len(context.split()) > 25 or len(context) > 240:
+            self._status("Ignoring empty or overly long Qwen scene description.")
             return qwen_response, ""
         lowered = context.lower()
         if (
@@ -464,26 +485,128 @@ class SafeZoneAssistant:
             pass
 
     @staticmethod
-    def _safety_message(targets):
+    def _parse_schedule_time(value, name):
+        value = str(value).strip()
+        if not value:
+            return None
+        try:
+            return datetime.strptime(value, "%H:%M").time()
+        except ValueError as error:
+            raise ValueError(f"{name} must use 24-hour HH:MM format") from error
+
+    @classmethod
+    def _parse_breaks(cls, value):
+        breaks = []
+        for item in str(value).split(","):
+            item = item.strip()
+            if not item:
+                continue
+            parts = item.split("-")
+            if len(parts) != 2:
+                raise ValueError(
+                    "breaks must be comma-separated HH:MM-HH:MM ranges"
+                )
+            start = cls._parse_schedule_time(parts[0], "break start")
+            end = cls._parse_schedule_time(parts[1], "break end")
+            if start == end:
+                raise ValueError("break start and end must be different")
+            breaks.append((start, end))
+        return breaks
+
+    @staticmethod
+    def _within_time_range(now, start, end):
+        current = now.timetz().replace(tzinfo=None)
+        if start < end:
+            return start <= current < end
+        return current >= start or current < end
+
+    def _active_policy_mode(self, captured_at):
+        if self.policy_mode in {"work", "off_duty"}:
+            return self.policy_mode
+        if self.work_start is None or self.work_end is None:
+            return "schedule_unconfigured"
+        in_work_hours = self._within_time_range(
+            captured_at, self.work_start, self.work_end
+        )
+        in_break = any(
+            self._within_time_range(captured_at, start, end)
+            for start, end in self.breaks
+        )
+        return "work" if in_work_hours and not in_break else "off_duty"
+
+    def _policy_status(self):
+        if self.policy_mode == "schedule":
+            if self.work_start is None:
+                return "schedule selected but duty hours are not configured; advisory only"
+            breaks = ", ".join(
+                f"{start.strftime('%H:%M')}-{end.strftime('%H:%M')}"
+                for start, end in self.breaks
+            ) or "no configured breaks"
+            return (
+                f"schedule-based ({self.work_start.strftime('%H:%M')}-"
+                f"{self.work_end.strftime('%H:%M')}, breaks: {breaks}, local time; "
+                f"currently {self._active_policy_mode(datetime.now().astimezone())})"
+            )
+        return f"{self.policy_mode.replace('_', '-')} demo override"
+
+    @staticmethod
+    def _safety_message(targets, policy_mode, visual_context, captured_at):
+        items = " and ".join(
+            name for name in ("scissors", "earbuds") if name in targets
+        )
+        timestamp = captured_at.strftime("%H:%M")
+        scene = (
+            f"Scene: {visual_context}. " if visual_context else ""
+        )
+        saved = (
+            f"This scene image was saved locally at {timestamp} for safety review. "
+        )
         if not targets:
+            if policy_mode == "work":
+                return (
+                    f"{scene}No prohibited target was detected in this frame. "
+                    "Thank you for following the active-duty safety rules."
+                )
+            if policy_mode == "off_duty":
+                return (
+                    f"{scene}No scissors or earbuds were detected. Thank you "
+                    "for helping keep the workspace safe."
+                )
             return (
-                "Thank you for helping keep the workspace safe. No scissors or "
-                "earbuds were clearly detected in this frame."
+                f"{scene}No scissors or earbuds were detected. Thank you for "
+                "helping keep the workspace safe."
             )
-        if set(targets) == {"scissors"}:
+
+        if policy_mode == "work":
+            reasons = []
+            if "scissors" in targets:
+                reasons.append(
+                    "secure the scissors and keep tools clear of moving machinery"
+                )
+            if "earbuds" in targets:
+                reasons.append(
+                    "put away personal earbuds and keep required hearing protection "
+                    "and equipment alarms in mind"
+                )
             return (
-                "Possible scissors are visible. Please check local safety guidance "
-                "if they are in use. Thank you for helping keep the workspace safe."
+                f"{scene}Attention, team: possible {items} detected. The active-duty "
+                "work-time policy prohibits these items during duty. Please "
+                f"{' and '.join(reasons)} and follow site safety procedures. "
+                f"{saved}"
             )
-        if set(targets) == {"earbuds"}:
+
+        if policy_mode == "off_duty":
             return (
-                "Possible earbuds are visible; this does not show whether anyone "
-                "is wearing them. Thank you for helping keep the workspace safe."
+                f"{scene}Possible {items} detected. The off-duty demo profile is "
+                "active, so the work-time restriction is not being applied. "
+                "Please still follow equipment and site safety guidance."
             )
+
         return (
-            "Possible scissors and earbuds are visible; this does not show whether "
-            "anyone is using or wearing them. Thank you for helping keep the "
-            "workspace safe, and please check local safety guidance if relevant."
+            f"{scene}Possible {items} detected, but duty hours are not configured, "
+            "so SafeZone cannot determine whether the work-time prohibition is "
+            "active. Please follow site safety guidance. "
+            f"{saved}"
         )
 
     def _shutdown(self):

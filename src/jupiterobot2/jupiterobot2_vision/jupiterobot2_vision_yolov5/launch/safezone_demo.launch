@@ -5,6 +5,10 @@
   <arg name="processing_interval" default="0.35"/>
   <arg name="audio_source" default="pulsesrc"/>
   <arg name="acoustic_model" default="/usr/local/share/pocketsphinx/model/en-us/en-us"/>
+  <arg name="policy_mode" default="schedule"/>
+  <arg name="work_start" default="09:00"/>
+  <arg name="work_end" default="17:00"/>
+  <arg name="breaks" default="12:00-13:00"/>
 
   <node name="camera_shm_cleanup"
         pkg="astra_camera"
@@ -53,6 +57,10 @@
     <param name="processing_interval" value="$(arg processing_interval)"/>
     <param name="confidence" value="0.25"/>
     <param name="event_log_dir" value="$(env HOME)/.ros/safezone/events"/>
+    <param name="policy_mode" value="$(arg policy_mode)"/>
+    <param name="work_start" value="$(arg work_start)"/>
+    <param name="work_end" value="$(arg work_end)"/>
+    <param name="breaks" value="$(arg breaks)"/>
   </node>
 
   <node pkg="jupiterobot2_voice_xf"
