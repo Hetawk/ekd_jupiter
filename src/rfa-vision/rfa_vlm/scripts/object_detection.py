@@ -20,6 +20,7 @@ class ObjectDetection:
 
     def __init__(self):
 
+        # Qwen credentials come from EKD_QWEN_API_KEY via setup_ekd.bash; never hard-code the key.
         api_key = os.environ.get("EKD_QWEN_API_KEY")
         if not api_key:
             raise RuntimeError("EKD_QWEN_API_KEY is unset; source ~/ekd_catkin_ws/setup_ekd.bash")

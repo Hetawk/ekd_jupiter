@@ -106,18 +106,15 @@ class SafeZoneWakeListener:
 
     def _match_keyword(self, hypothesis):
         heard_words = hypothesis.split()
-        phrases = sorted(
-            self.keywords,
-            key=lambda phrase: len(phrase.split()),
-            reverse=True,
-        )
+        matches = []
+        phrases = sorted(self.keywords)
         for phrase in phrases:
             phrase_words = phrase.split()
             phrase_length = len(phrase_words)
             for start in range(len(heard_words) - phrase_length + 1):
                 if heard_words[start:start + phrase_length] == phrase_words:
-                    return phrase
-        return None
+                    matches.append((start, -phrase_length, phrase))
+        return min(matches)[2] if matches else None
 
     def _on_element_message(self, _bus, message):
         structure = message.get_structure()

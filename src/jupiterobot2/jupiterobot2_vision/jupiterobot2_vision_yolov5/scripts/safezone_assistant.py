@@ -145,6 +145,7 @@ class SafeZoneAssistant:
                 f"found {sorted(model_labels)}"
             )
 
+        # Optional Qwen context uses the environment key loaded by setup_ekd.bash; YOLO does not need it.
         # Previous key variable: EKD_DASHSCOPE_API_KEY
         api_key = os.environ.get("EKD_QWEN_API_KEY")
         self.client = (

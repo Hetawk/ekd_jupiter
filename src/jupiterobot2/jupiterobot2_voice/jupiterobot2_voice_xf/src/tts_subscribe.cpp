@@ -8,6 +8,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
+#include <string>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include "jupiterobot2_voice_xf/qtts.h"
 #include "jupiterobot2_voice_xf/msp_cmn.h"
@@ -15,6 +19,74 @@
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
+
+ros::Publisher ttsStatusPublisher;
+
+void publishTtsStatus(const std::string& status)
+{
+	std_msgs::String message;
+	message.data = status;
+	ttsStatusPublisher.publish(message);
+}
+
+bool waitForProcess(pid_t child, const char* operation)
+{
+	int status = 0;
+	pid_t result;
+	do
+	{
+		result = waitpid(child, &status, 0);
+	}
+	while (result < 0 && errno == EINTR);
+
+	if (result < 0)
+	{
+		ROS_ERROR("%s failed while waiting for its process: %s",
+			operation, strerror(errno));
+		return false;
+	}
+	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+	{
+		ROS_ERROR("%s failed (exit status: %d).", operation,
+			WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+		return false;
+	}
+	return true;
+}
+
+bool synthesizeWithFlite(const char* text, const char* filename)
+{
+	pid_t child = fork();
+	if (child < 0)
+	{
+		ROS_ERROR("Could not start local Flite speech synthesis: %s",
+			strerror(errno));
+		return false;
+	}
+	if (child == 0)
+	{
+		execlp("flite", "flite", "-t", text, "-o", filename,
+			static_cast<char*>(NULL));
+		_exit(127);
+	}
+	return waitForProcess(child, "Local Flite speech synthesis");
+}
+
+bool playAudio(const char* filename)
+{
+	pid_t child = fork();
+	if (child < 0)
+	{
+		ROS_ERROR("Could not start audio playback: %s", strerror(errno));
+		return false;
+	}
+	if (child == 0)
+	{
+		execlp("play", "play", "-q", filename, static_cast<char*>(NULL));
+		_exit(127);
+	}
+	return waitForProcess(child, "Audio playback");
+}
 
 /* wav音频头部格式 */
 typedef struct _wave_pcm_hdr
@@ -138,33 +210,59 @@ int text_to_speech(const char* src_text, const char* des_path, const char* param
 
 void voiceWordsCallback(const std_msgs::String::ConstPtr& msg)
 {
-	char cmd[2000];
 	const char* text;
 	int ret = MSP_SUCCESS;
 	const char* session_begin_params = "voice_name = xiaoyan, text_encoding = utf8, sample_rate = 16000, speed = 50, volume = 50, pitch = 50, rdn = 2";
 	const char* filename = "tts_sample.wav";
 
-	std::cout<<"I heard :"<<msg->data.c_str()<<std::endl;
-	text = msg->data.c_str();
+	if (msg->data.empty())
+	{
+		ROS_WARN("Ignoring an empty speech request.");
+		return;
+	}
 
-	/* 文本合成 */
-	printf("开始合成 ...\n");
+	ROS_INFO("Synthesizing speech (%zu characters).", msg->data.size());
+	text = msg->data.c_str();
+	publishTtsStatus("started");
 	ret = text_to_speech(text, filename, session_begin_params);
+	bool usedFlite = false;
 	if (MSP_SUCCESS != ret)
 	{
-		printf("text_to_speech failed, error code: %d.\n", ret);
+		if (ret == MSP_ERROR_AUTH_NO_ENOUGH_LICENSE)
+		{
+			ROS_WARN(
+				"iFlytek returned MSP_ERROR_AUTH_NO_ENOUGH_LICENSE (11201); "
+				"using local Flite speech synthesis instead.");
+		}
+		else
+		{
+			ROS_WARN("iFlytek speech synthesis failed (error %d); "
+				"trying local Flite speech synthesis.", ret);
+		}
+		if (!synthesizeWithFlite(text, filename))
+		{
+			publishTtsStatus(
+				"error: iFlytek and local Flite speech synthesis failed");
+			return;
+		}
+		usedFlite = true;
 	}
-	printf("合成完毕\n");
 
-	popen("play tts_sample.wav","r");
-	sleep(1);
-}
-
-void toExit()
-{
-	printf("按任意键退出 ...\n");
-	getchar();
-	MSPLogout(); //退出登录
+	if (!playAudio(filename))
+	{
+		publishTtsStatus("error: audio playback failed");
+		return;
+	}
+	if (usedFlite)
+	{
+		ROS_INFO("Speech playback completed using local Flite fallback.");
+		publishTtsStatus("completed:flite");
+	}
+	else
+	{
+		ROS_INFO("Speech playback completed using iFlytek.");
+		publishTtsStatus("completed");
+	}
 }
 
 int main(int argc, char* argv[])
@@ -185,13 +283,15 @@ int main(int argc, char* argv[])
 	//const char* filename             = "tts_sample.wav"; //合成的语音文件名称
 	//const char* text                 = "科大讯飞作为智能语音技术提供商，在智能语音技术领域有着长期的研究积累，并在中文语音合成、语音识别、口语评测等多项技术上拥有技术成果。科大讯飞是我国以语音技术为产业化方向的国家863计划产业化基地。"; //合成文本
 
+	ros::init(argc, argv, "TextToSpeech");
+	ros::NodeHandle n;
+
 	/* 用户登录 */
-	ret = MSPLogin(NULL, NULL, login_params);//第一个参数是用户名，第二个参数是密码，第三个参数是登录参数，用户名和密码可在http://www.xfyun.cn注册获取
+	ret = MSPLogin(NULL, NULL, login_params);//第一个参数是用户名，第二个参数是密码，第三个参数是登录参数,用户名和密码可在http://www.xfyun.cn注册获取
 	if (MSP_SUCCESS != ret)
 	{
-		printf("MSPLogin failed, error code: %d.\n", ret);
-		//goto exit ;//登录失败，退出登录
-		toExit();
+		ROS_FATAL("MSPLogin failed, error code: %d.", ret);
+		return ret;
 	}
 	printf("\n###########################################################################\n");
 	printf("## 语音合成（Text To Speech，TTS）技术能够自动将任意文字实时转换为连续的 ##\n");
@@ -199,16 +299,12 @@ int main(int argc, char* argv[])
 	printf("## 高效便捷手段，非常符合信息时代海量数据、动态更新和个性化查询的需求。  ##\n");
 	printf("###########################################################################\n\n");
 	
-	ros::init(argc, argv, "TextToSpeech");
-	ros::NodeHandle n;
+	ttsStatusPublisher = n.advertise<std_msgs::String>(
+		"/safezone/tts_status", 10);
 	ros::Subscriber sub = n.subscribe("voiceWords", 1000, voiceWordsCallback);
 	ros::spin();
 
-exit:
-	printf("按任意键退出 ...\n");
-	getchar();
 	MSPLogout(); //退出登录
 
-	return 0;
+	return ret;
 }
-

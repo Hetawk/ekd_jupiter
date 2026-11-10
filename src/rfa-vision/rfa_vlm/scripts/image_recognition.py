@@ -19,6 +19,7 @@ class ImageRecognition:
 
     def __init__(self):
 
+        # Qwen credentials come from EKD_QWEN_API_KEY via setup_ekd.bash; never hard-code the key.
         self.client = OpenAI(
             api_key = os.environ["EKD_QWEN_API_KEY"],
             #base_url = "https://api.openai.com/v1",

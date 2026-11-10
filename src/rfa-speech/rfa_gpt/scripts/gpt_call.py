@@ -16,6 +16,7 @@ def get_cofig(config_file):
     with open(config_file,'r') as file:
         v = yaml.load(file, Loader=yaml.SafeLoader)
         global client, set_model
+        # Select credentials from the EKD_* environment; setup_ekd.bash loads .env. Never hard-code keys.
         key_environment = {
             'var.yaml': 'EKD_OPENAI_API_KEY',
             'deepseek.yaml': 'EKD_DEEPSEEK_API_KEY',
