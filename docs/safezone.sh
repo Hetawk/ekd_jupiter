@@ -31,26 +31,7 @@ if [[ -t 0 ]]; then
     case "${selection}" in
       1)
         policy_mode="schedule"
-        read -r -p "Daily duty start (HH:MM) [${work_start}; type none to disable]: " input
-        if [[ "${input,,}" == "none" ]]; then
-          work_start=""
-          work_end=""
-          breaks=""
-        elif [[ -n "${input}" ]]; then
-          work_start="${input}"
-        fi
-        if [[ -n "${work_start}" ]]; then
-          read -r -p "Daily duty end (HH:MM) [${work_end}]: " input
-          work_end="${input:-${work_end}}"
-          read -r -p "Allowed break ranges (HH:MM-HH:MM, comma-separated) [${breaks}]: " input
-          if [[ "${input,,}" == "none" ]]; then
-            breaks=""
-          elif [[ -n "${input}" ]]; then
-            breaks="${input}"
-          fi
-        else
-          printf 'Schedule disabled; SafeZone will give reminders without claiming the work-time prohibition is active.\n'
-        fi
+        printf 'Standard schedule selected: daily 09:00-17:00, lunch 12:00-13:00 (local robot time).\n'
         break
         ;;
       2)

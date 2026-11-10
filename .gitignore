@@ -5,6 +5,7 @@
 /devel/
 /install/
 /log/
+/output/
 /build.before-*/
 /devel.before-*/
 

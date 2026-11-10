@@ -19,9 +19,13 @@ from openai import APIError, OpenAI
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
-package_scripts = Path(
+package_path = Path(
     rospkg.RosPack().get_path("jupiterobot2_vision_yolov5")
-) / "scripts"
+).resolve()
+package_scripts = package_path / "scripts"
+workspace_root = Path(
+    os.environ.get("EKD_CATKIN_WS", package_path.parents[3])
+).resolve()
 if not (package_scripts / "detector.py").is_file():
     raise RuntimeError(f"SafeZone detector module not found in {package_scripts}")
 sys.path.insert(0, str(package_scripts))
@@ -103,7 +107,10 @@ class SafeZoneAssistant:
 
         self.event_directory = Path(
             os.path.expanduser(
-                rospy.get_param("~event_log_dir", "~/.ros/safezone/events")
+                rospy.get_param(
+                    "~event_log_dir",
+                    str(workspace_root / "output" / "safezone" / "events"),
+                )
             )
         )
         try:
@@ -197,6 +204,7 @@ class SafeZoneAssistant:
             f"Policy profile: {self._policy_status()}. Say a wake phrase to "
             "capture one scene image for feedback."
         )
+        self._status(f"Local event log and captured images: {self.event_directory}")
         self._record_event(
             "assistant_started",
             camera_topic=self.camera_topic,
@@ -380,19 +388,21 @@ class SafeZoneAssistant:
         qwen_status = "skipped_no_api_key"
         qwen_error = None
         try:
-            if self.client is not None:
-                qwen_response, context = self._get_visual_context(frame, targets)
-                qwen_status = "success"
-        except APIError as error:
-            qwen_status = "error"
-            qwen_error = str(error)
-            self._status(f"Qwen API error: {error}")
-        except (ValueError, cv2.error) as error:
-            qwen_status = "error"
-            qwen_error = str(error)
-            self._status(f"Could not prepare the event image: {error}")
+            try:
+                if self.client is not None:
+                    qwen_response, context = self._get_visual_context(
+                        frame, targets, policy_mode, captured_at
+                    )
+                    qwen_status = "success"
+            except APIError as error:
+                qwen_status = "error"
+                qwen_error = str(error)
+                self._status(f"Qwen API error: {error}")
+            except (ValueError, cv2.error) as error:
+                qwen_status = "error"
+                qwen_error = str(error)
+                self._status(f"Could not prepare the event image: {error}")
 
-        try:
             message = self._safety_message(
                 targets, policy_mode, context, captured_at
             )
@@ -415,7 +425,7 @@ class SafeZoneAssistant:
             with self.lock:
                 self.processing = False
 
-    def _get_visual_context(self, frame, targets):
+    def _get_visual_context(self, frame, targets, policy_mode, captured_at):
         encoded_ok, encoded_image = cv2.imencode(
             ".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85]
         )
@@ -423,13 +433,38 @@ class SafeZoneAssistant:
             raise ValueError("OpenCV could not encode the captured event frame")
 
         image_data = base64.b64encode(encoded_image.tobytes()).decode("ascii")
-        target_summary = ", ".join(
-            f"{name} (YOLO confidence {score:.2f})"
-            for name, score in targets.items()
-        ) or "no scissors or earbuds confirmed by the local detector"
+        target_summary = "\n".join(
+            (
+                f"- {name}: DETECTED (YOLO confidence "
+                f"{targets[name]:.2f})"
+                if name in targets
+                else f"- {name}: NOT DETECTED"
+            )
+            for name in sorted(TARGETS)
+        )
+        if policy_mode == "work":
+            policy_summary = (
+                "Active policy at capture: WORK TIME. The configured local demo "
+                "rule treats detected scissors and earbuds as prohibited during "
+                "duty. The local policy module, not you, generates the final "
+                "compliance warning."
+            )
+        elif policy_mode == "off_duty":
+            policy_summary = (
+                "Active policy at capture: OFF DUTY. The work-time prohibition is "
+                "not active; do not describe either detected object as prohibited."
+            )
+        else:
+            policy_summary = (
+                "Active policy at capture: SCHEDULE UNCONFIGURED. Do not claim "
+                "that a work-time prohibition is active."
+            )
         prompt = (
-            "Describe the visible scene neutrally in at most 25 words. The local "
-            f"detector reports these possible objects (not certainty): {target_summary}. "
+            f"Capture time (robot local time): {captured_at.isoformat(timespec='seconds')}.\n"
+            f"Selected policy profile: {self.policy_mode}.\n{policy_summary}\n"
+            "Current-frame local detector results:\n"
+            f"{target_summary}\n"
+            "Describe the visible scene neutrally in at most 25 words. "
             "Mention only clearly visible location, posture, and unambiguous "
             "clothing or headwear colors. Do not identify a person, infer gender, "
             "age, movement, intent, danger, injury, rule compliance, or claim an "

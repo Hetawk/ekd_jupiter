@@ -56,7 +56,7 @@
     <param name="show_preview" value="true"/>
     <param name="processing_interval" value="$(arg processing_interval)"/>
     <param name="confidence" value="0.25"/>
-    <param name="event_log_dir" value="$(env HOME)/.ros/safezone/events"/>
+    <param name="event_log_dir" value="$(env EKD_CATKIN_WS)/output/safezone/events"/>
     <param name="policy_mode" value="$(arg policy_mode)"/>
     <param name="work_start" value="$(arg work_start)"/>
     <param name="work_end" value="$(arg work_end)"/>

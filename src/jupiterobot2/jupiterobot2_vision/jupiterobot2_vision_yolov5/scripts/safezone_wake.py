@@ -104,6 +104,21 @@ class SafeZoneWakeListener:
     def _normalize(text):
         return " ".join(re.sub(r"[^a-z0-9 ]", " ", text.lower()).split())
 
+    def _match_keyword(self, hypothesis):
+        heard_words = hypothesis.split()
+        phrases = sorted(
+            self.keywords,
+            key=lambda phrase: len(phrase.split()),
+            reverse=True,
+        )
+        for phrase in phrases:
+            phrase_words = phrase.split()
+            phrase_length = len(phrase_words)
+            for start in range(len(heard_words) - phrase_length + 1):
+                if heard_words[start:start + phrase_length] == phrase_words:
+                    return phrase
+        return None
+
     def _on_element_message(self, _bus, message):
         structure = message.get_structure()
         if structure is None:
@@ -117,7 +132,8 @@ class SafeZoneWakeListener:
             return
 
         hypothesis = self._normalize(structure.get_value("hypothesis") or "")
-        if hypothesis not in self.keywords:
+        matched_keyword = self._match_keyword(hypothesis)
+        if matched_keyword is None:
             now = time.monotonic()
             if hypothesis and now - self.last_unmatched_report >= 3.0:
                 self.last_unmatched_report = now
@@ -130,8 +146,13 @@ class SafeZoneWakeListener:
         if now - self.last_wake < self.cooldown:
             return
         self.last_wake = now
-        self._status(f"Wake phrase recognized: '{hypothesis}'.")
-        self.publisher.publish(String(data=hypothesis))
+        if matched_keyword != hypothesis:
+            self._status(
+                f"Heard '{hypothesis}'; matched wake phrase '{matched_keyword}'."
+            )
+        else:
+            self._status(f"Wake phrase recognized: '{matched_keyword}'.")
+        self.publisher.publish(String(data=matched_keyword))
 
     def _on_audio_level(self, structure):
         levels = structure.get_value("rms")
